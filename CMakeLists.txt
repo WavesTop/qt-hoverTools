@@ -1,49 +1,52 @@
 cmake_minimum_required(VERSION 3.16)
+project(hoverTools LANGUAGES CXX)
 
-# 项目名称和版本
-project(hoverTools VERSION 1.0.0 LANGUAGES CXX)
-
-# 设置 C++ 标准
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# 自动处理 Qt 的 moc/uic/rcc
-set(CMAKE_AUTOMOC ON)    # 自动生成 moc 文件
-set(CMAKE_AUTOUIC ON)    # 自动处理 UI 文件（.ui）
-set(CMAKE_AUTORCC ON)    # 自动处理资源文件（.qrc）
-
-# 查找 Qt 库（优先查找 Qt6，若未找到则回退到 Qt5）
-if(NOT DEFINED Qt6_DIR)
-  message(STATUS "Searching for Qt6...")
-  find_package(Qt6 COMPONENTS Core Widgets Gui REQUIRED)
-else()
-  find_package(Qt6 COMPONENTS Core Widgets Gui REQUIRED)
+if(APPLE AND EXISTS "/opt/homebrew/opt/qt")
+  list(APPEND CMAKE_PREFIX_PATH "/opt/homebrew/opt/qt")
+endif()
+if(APPLE AND EXISTS "/usr/local/opt/qt")
+  list(APPEND CMAKE_PREFIX_PATH "/usr/local/opt/qt")
 endif()
 
-# 如果未找到 Qt6，尝试查找 Qt5
+set(CMAKE_AUTOMOC ON)
+find_package(Qt6 COMPONENTS Widgets QUIET)
 if(NOT Qt6_FOUND)
-  message(STATUS "Qt6 not found, trying Qt5...")
-  find_package(Qt5 5.15 COMPONENTS Core Widgets Gui REQUIRED)
+  find_package(Qt5 5.15 REQUIRED COMPONENTS Widgets)
 endif()
 
-# 添加可执行文件
-add_executable(${PROJECT_NAME}
+set(SOURCES
   main.cpp
-  mainwindow.cpp
-  mainwindow.h
+  plugins/IActionProvider.cpp
+  core/UserShortcutsProvider.cpp
+  ui/FloatingAssistant.cpp
+  ui/ToolbarPanel.cpp
+)
+add_executable(hoverTools ${SOURCES})
+
+target_include_directories(hoverTools PRIVATE
+  ${CMAKE_SOURCE_DIR}/ui
+  ${CMAKE_SOURCE_DIR}/core
+  ${CMAKE_SOURCE_DIR}/plugins
 )
 
-# 链接 Qt 库
-if(Qt6_FOUND)
-  target_link_libraries(${PROJECT_NAME} PRIVATE
-    Qt6::Core
-    Qt6::Widgets
-    Qt6::Gui
-  )
+if(TARGET Qt6::Widgets)
+  target_link_libraries(hoverTools PRIVATE Qt6::Widgets)
 else()
-  target_link_libraries(${PROJECT_NAME} PRIVATE
-    Qt5::Core
-    Qt5::Widgets
-    Qt5::Gui
+  target_link_libraries(hoverTools PRIVATE Qt5::Widgets)
+endif()
+
+if(APPLE)
+  set(LINK_FILE "${CMAKE_BINARY_DIR}/CMakeFiles/hoverTools.dir/link.txt")
+  add_custom_command(TARGET hoverTools PRE_LINK
+    COMMAND sed -i.bak "s/-framework AGL//g" "CMakeFiles/hoverTools.dir/link.txt"
+    WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+    COMMENT "移除已废弃的 AGL 框架引用"
+  )
+  set_target_properties(hoverTools PROPERTIES
+    MACOSX_BUNDLE TRUE
+    MACOSX_BUNDLE_GUI_IDENTIFIER "com.tophovertools.hoverTools"
   )
 endif()
